@@ -80,8 +80,7 @@ func MakeGetRequest(params HTTPRequestParams) (*http.Response, error) {
 	return params.Client.Do(req)
 }
 
-func generatePOSTRequest(params HTTPRequestParams) (*http.Request, error) {
-	// Create a new HTTP request
+func GeneratePOSTRequest(params HTTPRequestParams) (*http.Request, error) {
 	req, err := http.NewRequest(params.Method, params.URL, nil)
 	if err != nil {
 		return nil, err
@@ -102,22 +101,23 @@ func generatePOSTRequest(params HTTPRequestParams) (*http.Request, error) {
 	if params.RequestContext != nil {
 		req = req.WithContext(params.RequestContext)
 	} else {
-		req = req.WithContext(context.Background())
+		req = req.WithContext(context.TODO())
 	}
 
 	return req, nil
 }
 
 func MakePostRequest(params HTTPRequestParams) (*http.Response, error) {
-	req, err := generatePOSTRequest(params)
+	req, err := GeneratePOSTRequest(params)
 	if err != nil {
 		return nil, err
 	}
 
 	// Set a timeout if specified
 	if params.TimeoutSec > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(params.TimeoutSec)*time.Second)
+		ctx, cancel := context.WithTimeout(req.Context(), time.Duration(params.TimeoutSec)*time.Second)
 		defer cancel()
+
 		req = req.WithContext(ctx)
 	}
 

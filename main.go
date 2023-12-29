@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
-	"net/url"
+	"os"
+	"path/filepath"
 
 	"github.com/Pomog/DiscoverNetHTTP/request"
 )
@@ -22,7 +26,7 @@ func main() {
 	client := http.Client{}
 
 	// URL for the GET request (http://localhost:8080 in this case)
-	urlAddress := "http://localhost:8080/login" // http://52.91.213.117/login test server deployed on AWS
+	urlAddress := "http://localhost:8080/registration" // http://52.91.213.117/login test server deployed on AWS
 
 	// Create an instance of HTTPRequestParams for the GET request
 	params := request.HTTPRequestParams{
@@ -47,44 +51,79 @@ func main() {
 	fmt.Println("Cookies: ", response.Cookies())
 	fmt.Println("Request.UR:", response.Request.URL)
 
-	// Read and print the response body
-	body := make([]byte, 512)
-	_, _ = response.Body.Read(body)
-	fmt.Println("Response Body:", string(body))
+	// Create an instance of HTTPRequestParams for the POST request
+	// Prepare form data
+	bodyPost := &bytes.Buffer{}
+	writer := multipart.NewWriter(bodyPost)
 
-	// Create an instance of HTTPRequestParams for the GET request
-	paramsPOST := request.HTTPRequestParams{
-		Client:     &client,
-		URL:        urlAddress,
-		Method:     "POST",
-		TimeoutSec: 10,
-	}
-	// Add form data to the request
-	paramsPOST.Values = url.Values{}
-	paramsPOST.Values.Set("emailLogIn", "beavis@mtv.com")
-	paramsPOST.Values.Set("passwordLogIn", "123456")
+	_ = writer.WriteField("firstName", "John")
+	_ = writer.WriteField("lastName", "Doe")
+	_ = writer.WriteField("nickName", "JohnD")
+	_ = writer.WriteField("emailRegistr", "john.doe@example.com")
+	_ = writer.WriteField("passwordReg", "securePassword123")
 
-	// Make a Post request to server
-	response, err = request.MakePostRequest(paramsPOST)
+	// Add file to the request
+	// Open the file to be included in the request
+	file, err := os.Open("johvi.png")
 	if err != nil {
-		log.Fatal("Error:", err)
+		fmt.Println("Error opening file:", err)
+		return
 	}
-	defer response.Body.Close()
+	defer file.Close()
+
+	// Create the form field for the file
+	part, err := writer.CreateFormFile("avatar", filepath.Base(file.Name()))
+	if err != nil {
+		fmt.Println("Error creating form file:", err)
+		return
+	}
+
+	// Copy the file content to the form field
+	_, err = io.Copy(part, file)
+	if err != nil {
+		fmt.Println("Error copying file to form file:", err)
+		return
+	}
+
+	// Write a custom header for the file part
+	part.Write([]byte("Content-Type: image/png\r\n\r\n"))
+
+	// Close the writer to finalize the form data
+	_ = writer.Close()
+
+	// Create the request
+	request, err := http.NewRequest("POST", urlAddress, bodyPost)
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return
+	}
+
+	// Set the Content-Type header to the writer's boundary
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	// Send the request
+	clientPost := &http.Client{}
+	responsePost, err := clientPost.Do(request)
+	if err != nil {
+		fmt.Println("Error sending request:", err)
+		return
+	}
+	defer responsePost.Body.Close()
 
 	// Process the response
 	fmt.Println("response to POST request")
-	fmt.Println("Status Code: ", response.Status)
-	fmt.Println("Header:", response.Header)
-	fmt.Println("Cookies: ", response.Cookies())
-	fmt.Println("Request.UR: ", response.Request.URL)
+	fmt.Println("Status Code: ", responsePost.Status)
+	fmt.Println("Header:", responsePost.Header)
+	fmt.Println("Cookies: ", responsePost.Cookies())
+	fmt.Println("Request.URL:", responsePost.Request.URL)
 
 	// Read and print the response body
-	POSTbody := make([]byte, 5000)
-	_, _ = response.Body.Read(POSTbody)
-	fmt.Println("Response Body:\n", string(POSTbody))
+	bodyResp := make([]byte, 5000)
+	_, _ = responsePost.Body.Read(bodyResp)
+	fmt.Println("Response Body:", string(bodyResp))
 }
 
-// // Create an instance of HTTPRequestParams for the GET request
+// // Create an instance of HTTPRequestParams for the POST request
 // paramsPOST := request.HTTPRequestParams{
 // 	Client:     &client,
 // 	URL:        urlAddress,
@@ -134,6 +173,37 @@ func main() {
 // fmt.Println("Request.UR: ", response.Request.URL)
 // location, _ := response.Location()
 // fmt.Println("location: ", location)
+
+// // Read and print the response body
+// POSTbody := make([]byte, 5000)
+// _, _ = response.Body.Read(POSTbody)
+// fmt.Println("Response Body:\n", string(POSTbody))
+
+// // Create an instance of HTTPRequestParams for the GET request
+// paramsPOST := request.HTTPRequestParams{
+// 	Client:     &client,
+// 	URL:        urlAddress,
+// 	Method:     "POST",
+// 	TimeoutSec: 10,
+// }
+// // Add form data to the request
+// paramsPOST.Values = url.Values{}
+// paramsPOST.Values.Set("emailLogIn", "beavis@mtv.com")
+// paramsPOST.Values.Set("passwordLogIn", "123456")
+
+// // Make a Post request to server
+// response, err = request.MakePostRequest(paramsPOST)
+// if err != nil {
+// 	log.Fatal("Error:", err)
+// }
+// defer response.Body.Close()
+
+// // Process the response
+// fmt.Println("response to POST request")
+// fmt.Println("Status Code: ", response.Status)
+// fmt.Println("Header:", response.Header)
+// fmt.Println("Cookies: ", response.Cookies())
+// fmt.Println("Request.UR: ", response.Request.URL)
 
 // // Read and print the response body
 // POSTbody := make([]byte, 5000)
