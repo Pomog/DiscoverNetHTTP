@@ -14,11 +14,11 @@ import (
 func main() {
 
 	// URL for the request (http://localhost:8080 in this case)
-	urlAddress := "http://localhost:8080/registration" // http://52.91.213.117/login test server deployed on AWS
+	urlAddress := "http://localhost:8080/registration" // add URL of the deployed test server
 
 	// Create an HTTP client.This concept must be assimilated
 	client := http.Client{}
-	
+
 	// Create a POST request for user registration.
 	// This request registers a new user in the FFForum web application (https://github.com/Pomog/ForumFFF),
 	// which can be verified
