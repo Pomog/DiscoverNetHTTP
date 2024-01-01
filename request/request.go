@@ -1,11 +1,17 @@
 package request
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
+	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
+	"path/filepath"
 	"time"
 )
 
@@ -80,21 +86,57 @@ func MakeGetRequest(params HTTPRequestParams) (*http.Response, error) {
 	return params.Client.Do(req)
 }
 
-func GeneratePOSTRequest(params HTTPRequestParams) (*http.Request, error) {
-	req, err := http.NewRequest(params.Method, params.URL, nil)
-	if err != nil {
-		return nil, err
+func GeneratePOSTRequestWithFile(params HTTPRequestParams) (*http.Request, error) {
+	var req *http.Request
+	var err error
+
+	// Check if there are files to include in the request
+	if len(params.Files) > 0 {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		// Add files to the request
+		for filename, content := range params.Files {
+			part, err := writer.CreatePart(textproto.MIMEHeader{
+				"Content-Disposition": []string{fmt.Sprintf(`form-data; name="avatar"; filename="%s"`, filepath.Base(filename))},
+				"Content-Type":        []string{"image/png"},
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			if _, err := io.Copy(part, content); err != nil {
+				return nil, err
+			}
+		}
+
+		// Add other form values from params.Values
+		for key, values := range params.Values {
+			for _, value := range values {
+				_ = writer.WriteField(key, value)
+			}
+		}
+
+		err = writer.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		// Create a new request with a reader for the multipart body
+		req, err = http.NewRequest(params.Method, params.URL, body)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set the Content-Type header for the multipart form data
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+	} else {
+		return nil, errors.New("no files provided")
 	}
 
 	// Set request headers
 	for key, value := range params.Headers {
 		req.Header.Set(key, value)
-	}
-
-	// Set form values for POST requests
-	if params.Method == "POST" {
-		req.PostForm = params.Values
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 
 	// Set the context for the request
@@ -108,7 +150,7 @@ func GeneratePOSTRequest(params HTTPRequestParams) (*http.Request, error) {
 }
 
 func MakePostRequest(params HTTPRequestParams) (*http.Response, error) {
-	req, err := GeneratePOSTRequest(params)
+	req, err := GeneratePOSTRequestWithFile(params)
 	if err != nil {
 		return nil, err
 	}
